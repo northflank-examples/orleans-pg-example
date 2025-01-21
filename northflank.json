@@ -1,330 +1,345 @@
 {
-    "apiVersion": "v1.2",
+  "apiVersion": "v1.2",
+  "spec": {
+    "kind": "Workflow",
     "spec": {
-      "kind": "Workflow",
-      "spec": {
-        "type": "sequential",
-        "steps": [
-          {
-            "kind": "Project",
-            "ref": "project",
-            "spec": {
-              "name": "orleans",
-              "region": "europe-west"
-            }
-          },
-          {
-            "kind": "Workflow",
-            "spec": {
-              "type": "sequential",
-              "context": {
-                "projectId": "${refs.project.id}"
-              },
-              "steps": [
-                {
-                  "kind": "Addon",
-                  "spec": {
-                    "externalAccessEnabled": true,
-                    "type": "postgresql",
-                    "billing": {
-                      "replicas": 1,
-                      "storage": 4096,
-                      "storageClass": "ssd",
-                      "deploymentPlan": "nf-compute-20"
-                    },
-                    "tlsEnabled": true,
-                    "typeSpecificSettings": {
-                      "postgresqlConnectionPoolerReplicas": 2,
-                      "postgresqlReadConnectionPoolerReplicas": 2
-                    },
-                    "name": "orlean-pg",
-                    "version": "latest"
-                  },
-                  "ref": "orlean-pg"
-                },
-                {
-                  "kind": "SecretGroup",
-                  "spec": {
-                    "type": "secret",
-                    "secretType": "environment",
-                    "priority": 10,
-                    "secrets": {
-                      "variables": {
-                        "POSTGRES_CONNECTION_STRING": "Host=${NF_ORLEAN_PG_HOST};Database=${NF_ORLEAN_PG_DATABASE};Username=${NF_ORLEAN_PG_USERNAME};Password=${NF_ORLEAN_PG_PASSWORD}",
-                        "SERVICE_ID": "test1",
-                        "CLUSTER_ID": "test1",
-                        "DB_HOST": "${NF_ORLEAN_PG_HOST}",
-                        "DB_USER": "${NF_ORLEAN_PG_USERNAME}",
-                        "DB_PASSWORD": "${NF_ORLEAN_PG_PASSWORD}",
-                        "DB_NAME": "${NF_ORLEAN_PG_DATABASE}"
-                      },
-                      "files": {}
-                    },
-                    "addonDependencies": [
-                      {
-                        "addonId": "${refs.orlean-pg.id}",
-                        "keys": [
-                          {
-                            "keyName": "USERNAME",
-                            "aliases": []
-                          },
-                          {
-                            "keyName": "PASSWORD",
-                            "aliases": []
-                          },
-                          {
-                            "keyName": "DATABASE",
-                            "aliases": []
-                          },
-                          {
-                            "keyName": "HOST",
-                            "aliases": []
-                          },
-                          {
-                            "keyName": "PORT",
-                            "aliases": []
-                          }
-                        ]
-                      }
-                    ],
-                    "name": "orleans-secrets",
-                    "restrictions": {
-                      "restricted": false,
-                      "nfObjects": [],
-                      "tags": []
-                    }
-                  },
-                  "ref": "orleans-secrets"
-                },
-                {
-                  "kind": "ManualJob",
-                  "spec": {
-                    "runOnSourceChange": "never",
-                    "backoffLimit": 0,
-                    "activeDeadlineSeconds": 600,
-                    "deployment": {
-                      "storage": {
-                        "ephemeralStorage": {
-                          "storageSize": 1024
-                        },
-                        "shmSize": 64
-                      },
-                      "docker": {
-                        "configType": "default"
-                      },
-                      "vcs": {
-                        "projectType": "github",
-                        "accountLogin": "northflank-examples",
-                        "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
-                        "projectBranch": "testing"
-                      }
-                    },
-                    "runtimeEnvironment": {},
-                    "runtimeFiles": {},
-                    "billing": {
-                      "deploymentPlan": "nf-compute-10",
-                      "buildPlan": "nf-compute-200-4"
-                    },
-                    "name": "prepare-db-job",
-                    "buildArguments": {},
-                    "buildFiles": {},
-                    "buildSettings": {
-                      "dockerfile": {
-                        "buildEngine": "kaniko",
-                        "useCache": false,
-                        "dockerWorkDir": "/postgres-bootstrap",
-                        "dockerFilePath": "/postgres-bootstrap/Dockerfile",
-                        "buildkit": {
-                          "useInternalCache": false,
-                          "internalCacheStorage": 16384
-                        }
-                      }
-                    },
-                    "buildConfiguration": {
-                      "pathIgnoreRules": [],
-                      "isAllowList": false,
-                      "ciIgnoreFlagsEnabled": false
-                    }
-                  },
-                  "ref": "prepare-db-job"
-                },
-                {
-                  "kind": "JobRun",
-                  "spec": {
-                    "projectId": "${refs.project.id}",
-                    "jobId": "${refs.prepare-db-job.id}"
-                  },
-                  "condition": "success",
-                  "ref": "refsprepare-db-jobid-jobrun-1"
-                },
-                {
-                  "kind": "Workflow",
-                  "spec": {
-                    "type": "parallel",
-                    "steps": [
-                      {
-                        "kind": "CombinedService",
-                        "spec": {
-                          "deployment": {
-                            "instances": 1,
-                            "storage": {
-                              "ephemeralStorage": {
-                                "storageSize": 1024
-                              },
-                              "shmSize": 64
-                            },
-                            "docker": {
-                              "configType": "default"
-                            }
-                          },
-                          "runtimeEnvironment": {},
-                          "runtimeFiles": {},
-                          "buildArguments": {},
-                          "buildFiles": {},
-                          "billing": {
-                            "deploymentPlan": "nf-compute-10",
-                            "buildPlan": "nf-compute-200-4"
-                          },
-                          "name": "orlean-pg-client",
-                          "vcsData": {
-                            "projectType": "github",
-                            "accountLogin": "northflank-examples",
-                            "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
-                            "projectBranch": "testing"
-                          },
-                          "ports": [],
-                          "buildSettings": {
-                            "dockerfile": {
-                              "buildEngine": "kaniko",
-                              "useCache": false,
-                              "dockerWorkDir": "/",
-                              "dockerFilePath": "/KubeClient/Dockerfile",
-                              "buildkit": {
-                                "useInternalCache": false,
-                                "internalCacheStorage": 16384
-                              }
-                            }
-                          },
-                          "disabledCI": false,
-                          "buildConfiguration": {
-                            "pathIgnoreRules": [],
-                            "isAllowList": false,
-                            "ciIgnoreFlagsEnabled": false
-                          }
-                        },
-                        "ref": "orlean-pg-client"
-                      },
-                      {
-                        "kind": "CombinedService",
-                        "spec": {
-                          "deployment": {
-                            "instances": 1,
-                            "storage": {
-                              "ephemeralStorage": {
-                                "storageSize": 1024
-                              },
-                              "shmSize": 64
-                            },
-                            "docker": {
-                              "configType": "default"
-                            }
-                          },
-                          "runtimeEnvironment": {},
-                          "runtimeFiles": {},
-                          "buildArguments": {},
-                          "buildFiles": {},
-                          "billing": {
-                            "deploymentPlan": "nf-compute-10",
-                            "buildPlan": "nf-compute-200-4"
-                          },
-                          "name": "orlean-pg-gateway",
-                          "vcsData": {
-                            "projectType": "github",
-                            "accountLogin": "northflank-examples",
-                            "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
-                            "projectBranch": "testing"
-                          },
-                          "ports": [],
-                          "buildSettings": {
-                            "dockerfile": {
-                              "buildEngine": "kaniko",
-                              "useCache": false,
-                              "dockerWorkDir": "/",
-                              "dockerFilePath": "/KubeGatewayHost/Dockerfile",
-                              "buildkit": {
-                                "useInternalCache": false,
-                                "internalCacheStorage": 16384
-                              }
-                            }
-                          },
-                          "disabledCI": false,
-                          "buildConfiguration": {
-                            "pathIgnoreRules": [],
-                            "isAllowList": false,
-                            "ciIgnoreFlagsEnabled": false
-                          }
-                        },
-                        "ref": "orlean-pg-gateway"
-                      },
-                      {
-                        "kind": "CombinedService",
-                        "spec": {
-                          "deployment": {
-                            "instances": 1,
-                            "storage": {
-                              "ephemeralStorage": {
-                                "storageSize": 1024
-                              },
-                              "shmSize": 64
-                            },
-                            "docker": {
-                              "configType": "default"
-                            }
-                          },
-                          "runtimeEnvironment": {},
-                          "runtimeFiles": {},
-                          "buildArguments": {},
-                          "buildFiles": {},
-                          "billing": {
-                            "deploymentPlan": "nf-compute-10",
-                            "buildPlan": "nf-compute-200-4"
-                          },
-                          "name": "orlean-pg-silo",
-                          "vcsData": {
-                            "projectType": "github",
-                            "accountLogin": "northflank-examples",
-                            "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
-                            "projectBranch": "testing"
-                          },
-                          "ports": [],
-                          "buildSettings": {
-                            "dockerfile": {
-                              "buildEngine": "kaniko",
-                              "useCache": false,
-                              "dockerWorkDir": "/",
-                              "dockerFilePath": "/KubeSiloHost/Dockerfile",
-                              "buildkit": {
-                                "useInternalCache": false,
-                                "internalCacheStorage": 16384
-                              }
-                            }
-                          },
-                          "disabledCI": false,
-                          "buildConfiguration": {
-                            "pathIgnoreRules": [],
-                            "isAllowList": false,
-                            "ciIgnoreFlagsEnabled": false
-                          }
-                        },
-                        "ref": "orlean-pg-silo"
-                      }
-                    ]
-                  }
-                }
-              ]
-            }
+      "type": "sequential",
+      "steps": [
+        {
+          "kind": "Project",
+          "ref": "project",
+          "spec": {
+            "name": "orleans",
+            "region": "europe-west"
           }
-        ]
-      }
+        },
+        {
+          "kind": "Workflow",
+          "spec": {
+            "type": "sequential",
+            "context": {
+              "projectId": "${refs.project.id}"
+            },
+            "steps": [
+              {
+                "kind": "Addon",
+                "spec": {
+                  "externalAccessEnabled": true,
+                  "type": "postgresql",
+                  "billing": {
+                    "replicas": 1,
+                    "storage": 4096,
+                    "storageClass": "ssd",
+                    "deploymentPlan": "nf-compute-20"
+                  },
+                  "tlsEnabled": true,
+                  "typeSpecificSettings": {
+                    "postgresqlConnectionPoolerReplicas": 2,
+                    "postgresqlReadConnectionPoolerReplicas": 2
+                  },
+                  "name": "orlean-pg",
+                  "version": "latest"
+                },
+                "ref": "orlean-pg"
+              },
+              {
+                "kind": "SecretGroup",
+                "spec": {
+                  "type": "secret",
+                  "secretType": "environment",
+                  "priority": 10,
+                  "secrets": {
+                    "variables": {
+                      "POSTGRES_CONNECTION_STRING": "Host=${NF_ORLEAN_PG_HOST};Database=${NF_ORLEAN_PG_DATABASE};Username=${NF_ORLEAN_PG_USERNAME};Password=${NF_ORLEAN_PG_PASSWORD}",
+                      "SERVICE_ID": "test1",
+                      "CLUSTER_ID": "test1",
+                      "DB_HOST": "${NF_ORLEAN_PG_HOST}",
+                      "DB_USER": "${NF_ORLEAN_PG_USERNAME}",
+                      "DB_PASSWORD": "${NF_ORLEAN_PG_PASSWORD}",
+                      "DB_NAME": "${NF_ORLEAN_PG_DATABASE}"
+                    },
+                    "files": {}
+                  },
+                  "addonDependencies": [
+                    {
+                      "addonId": "${refs.orlean-pg.id}",
+                      "keys": [
+                        {
+                          "keyName": "USERNAME",
+                          "aliases": []
+                        },
+                        {
+                          "keyName": "PASSWORD",
+                          "aliases": []
+                        },
+                        {
+                          "keyName": "DATABASE",
+                          "aliases": []
+                        },
+                        {
+                          "keyName": "HOST",
+                          "aliases": []
+                        },
+                        {
+                          "keyName": "PORT",
+                          "aliases": []
+                        }
+                      ]
+                    }
+                  ],
+                  "name": "orleans-secrets",
+                  "restrictions": {
+                    "restricted": false,
+                    "nfObjects": [],
+                    "tags": []
+                  }
+                },
+                "ref": "orleans-secrets"
+              },
+              {
+                "kind": "ManualJob",
+                "spec": {
+                  "runOnSourceChange": "never",
+                  "backoffLimit": 0,
+                  "activeDeadlineSeconds": 600,
+                  "deployment": {
+                    "storage": {
+                      "ephemeralStorage": {
+                        "storageSize": 1024
+                      },
+                      "shmSize": 64
+                    },
+                    "docker": {
+                      "configType": "default"
+                    },
+                    "vcs": {
+                      "projectType": "github",
+                      "accountLogin": "northflank-examples",
+                      "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
+                      "projectBranch": "testing"
+                    }
+                  },
+                  "runtimeEnvironment": {},
+                  "runtimeFiles": {},
+                  "billing": {
+                    "deploymentPlan": "nf-compute-10",
+                    "buildPlan": "nf-compute-200-4"
+                  },
+                  "name": "prepare-db-job",
+                  "buildArguments": {},
+                  "buildFiles": {},
+                  "buildSettings": {
+                    "dockerfile": {
+                      "buildEngine": "kaniko",
+                      "useCache": false,
+                      "dockerWorkDir": "/postgres-bootstrap",
+                      "dockerFilePath": "/postgres-bootstrap/Dockerfile",
+                      "buildkit": {
+                        "useInternalCache": false,
+                        "internalCacheStorage": 16384
+                      }
+                    }
+                  },
+                  "buildConfiguration": {
+                    "pathIgnoreRules": [],
+                    "isAllowList": false,
+                    "ciIgnoreFlagsEnabled": false
+                  }
+                },
+                "ref": "prepare-db-job"
+              },
+              {
+                "kind": "JobRun",
+                "spec": {
+                  "projectId": "${refs.project.id}",
+                  "jobId": "${refs.prepare-db-job.id}"
+                },
+                "condition": "success",
+                "ref": "refsprepare-db-jobid-jobrun-1"
+              },
+              {
+                "kind": "Workflow",
+                "spec": {
+                  "type": "parallel",
+                  "steps": [
+                    {
+                      "kind": "CombinedService",
+                      "spec": {
+                        "deployment": {
+                          "instances": 1,
+                          "storage": {
+                            "ephemeralStorage": {
+                              "storageSize": 1024
+                            },
+                            "shmSize": 64
+                          },
+                          "docker": {
+                            "configType": "default"
+                          }
+                        },
+                        "runtimeEnvironment": {},
+                        "runtimeFiles": {},
+                        "buildArguments": {},
+                        "buildFiles": {},
+                        "billing": {
+                          "deploymentPlan": "nf-compute-10",
+                          "buildPlan": "nf-compute-200-4"
+                        },
+                        "name": "orlean-pg-client",
+                        "vcsData": {
+                          "projectType": "github",
+                          "accountLogin": "northflank-examples",
+                          "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
+                          "projectBranch": "testing"
+                        },
+                        "ports": [],
+                        "buildSettings": {
+                          "dockerfile": {
+                            "buildEngine": "kaniko",
+                            "useCache": false,
+                            "dockerWorkDir": "/",
+                            "dockerFilePath": "/KubeClient/Dockerfile",
+                            "buildkit": {
+                              "useInternalCache": false,
+                              "internalCacheStorage": 16384
+                            }
+                          }
+                        },
+                        "disabledCI": false,
+                        "buildConfiguration": {
+                          "pathIgnoreRules": [],
+                          "isAllowList": false,
+                          "ciIgnoreFlagsEnabled": false
+                        }
+                      },
+                      "ref": "orlean-pg-client"
+                    },
+                    {
+                      "kind": "CombinedService",
+                      "spec": {
+                        "deployment": {
+                          "instances": 1,
+                          "storage": {
+                            "ephemeralStorage": {
+                              "storageSize": 1024
+                            },
+                            "shmSize": 64
+                          },
+                          "docker": {
+                            "configType": "default"
+                          }
+                        },
+                        "runtimeEnvironment": {},
+                        "runtimeFiles": {},
+                        "buildArguments": {},
+                        "buildFiles": {},
+                        "billing": {
+                          "deploymentPlan": "nf-compute-10",
+                          "buildPlan": "nf-compute-200-4"
+                        },
+                        "name": "orlean-pg-gateway",
+                        "vcsData": {
+                          "projectType": "github",
+                          "accountLogin": "northflank-examples",
+                          "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
+                          "projectBranch": "testing"
+                        },
+                        "ports": [],
+                        "buildSettings": {
+                          "dockerfile": {
+                            "buildEngine": "kaniko",
+                            "useCache": false,
+                            "dockerWorkDir": "/",
+                            "dockerFilePath": "/KubeGatewayHost/Dockerfile",
+                            "buildkit": {
+                              "useInternalCache": false,
+                              "internalCacheStorage": 16384
+                            }
+                          }
+                        },
+                        "disabledCI": false,
+                        "buildConfiguration": {
+                          "pathIgnoreRules": [],
+                          "isAllowList": false,
+                          "ciIgnoreFlagsEnabled": false
+                        }
+                      },
+                      "ref": "orlean-pg-gateway"
+                    },
+                    {
+                      "kind": "CombinedService",
+                      "spec": {
+                        "deployment": {
+                          "instances": 1,
+                          "storage": {
+                            "ephemeralStorage": {
+                              "storageSize": 1024
+                            },
+                            "shmSize": 64
+                          },
+                          "docker": {
+                            "configType": "default"
+                          }
+                        },
+                        "runtimeEnvironment": {},
+                        "runtimeFiles": {},
+                        "buildArguments": {},
+                        "buildFiles": {},
+                        "billing": {
+                          "deploymentPlan": "nf-compute-10",
+                          "buildPlan": "nf-compute-200-4"
+                        },
+                        "name": "orlean-pg-silo",
+                        "vcsData": {
+                          "projectType": "github",
+                          "accountLogin": "northflank-examples",
+                          "projectUrl": "https://github.com/northflank-examples/orleans-pg-example",
+                          "projectBranch": "testing"
+                        },
+                        "ports": [],
+                        "buildSettings": {
+                          "dockerfile": {
+                            "buildEngine": "kaniko",
+                            "useCache": false,
+                            "dockerWorkDir": "/",
+                            "dockerFilePath": "/KubeSiloHost/Dockerfile",
+                            "buildkit": {
+                              "useInternalCache": false,
+                              "internalCacheStorage": 16384
+                            }
+                          }
+                        },
+                        "disabledCI": false,
+                        "buildConfiguration": {
+                          "pathIgnoreRules": [],
+                          "isAllowList": false,
+                          "ciIgnoreFlagsEnabled": false
+                        }
+                      },
+                      "ref": "orlean-pg-silo"
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+        }
+      ]
     }
-  }
+  },
+  "name": "orleans-pg-template",
+  "options": {
+    "autorun": false,
+    "concurrencyPolicy": "allow",
+    "runOnUpdate": false
+  },
+  "gitops": {
+    "repoUrl": "https://github.com/northflank-examples/orleans-pg-example",
+    "vcsService": "github",
+    "accountLogin": "northflank-examples",
+    "branch": "testing",
+    "filePath": "/northflank.json"
+  },
+  "description": "",
+  "$schema": "https://api.salvo.sh/v1/schemas/template"
+}
